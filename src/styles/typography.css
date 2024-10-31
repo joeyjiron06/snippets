@@ -1,0 +1,32 @@
+@layer base {
+  h1 {
+    @apply font-extrabold text-balance text-4xl md:text-5xl lg:text-6xl font-serif;
+  }
+
+  h2 {
+    @apply font-bold text-balance text-3xl md:text-4xl lg:text-5xl font-serif;
+  }
+
+  h3 {
+    @apply font-bold text-balance text-2xl md:text-3xl lg:text-4xl font-serif;
+  }
+
+  h4 {
+    @apply font-bold text-balance text-xl md:text-2xl lg:text-3xl font-serif;
+  }
+
+  hgroup {
+    @apply space-y-3;
+  }
+
+  .text-dim {
+    @apply opacity-75;
+  }
+
+  .link {
+    @apply font-serif text-base;
+    &:hover {
+      @apply underline;
+    }
+  }
+}

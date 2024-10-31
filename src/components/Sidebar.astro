@@ -1,0 +1,74 @@
+---
+import { getCollection, getEntry, type CollectionEntry } from 'astro:content'
+import { groupBy, sortBy } from 'lodash-es'
+
+const allPosts = await getCollection('blog')
+
+interface Category {
+  name: string
+  posts: Array<CollectionEntry<'blog'>>
+}
+
+let categories: Array<Category> = []
+
+for (const [categoryId, posts] of Object.entries(
+  groupBy(allPosts, 'data.category.id')
+)) {
+  posts.sort(
+    (a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf()
+  )
+
+  const category = await getEntry('categories', categoryId)
+
+  if (!category) {
+    throw new Error(`category with id not found "${categoryId}"`)
+  }
+
+  categories.push({
+    name: category.data.name,
+    posts,
+  })
+}
+
+categories = sortBy(categories, 'name')
+---
+
+<nav class='pb-10'>
+  <ul class='space-y-8 py-4'>
+    {
+      categories.map((category) => (
+        <li>
+          <b class='font-serif text-xl'>{category.name}</b>
+
+          <ul class='mt-2 space-y-2 border-l border-l-surface-800 pl-3'>
+            {category.posts.map((post) => (
+              <li
+                class:list={[
+                  'text-dim -mx-px',
+                  'sidebar-nav-link',
+                  {
+                    active: Astro.url.pathname.endsWith(`/blog/${post.slug}`),
+                  },
+                ]}>
+                <a href={'blog/' + post.slug}>{post.data.title}</a>
+              </li>
+            ))}
+          </ul>
+        </li>
+      ))
+    }
+  </ul>
+</nav>
+
+<style>
+  .sidebar-nav-link.active {
+    @apply relative box-border font-semibold text-brand-50 opacity-100;
+
+    &::before {
+      content: '';
+      @apply absolute -left-3 box-border h-full w-px rounded-full bg-brand-50;
+
+      /* @apply absolute -left-4 top-1/2 mt-[0.0625rem] size-2 -translate-y-1/2 rounded-full bg-brand-50; */
+    }
+  }
+</style>

@@ -1,0 +1,35 @@
+---
+import { Icon } from 'astro-icon/components'
+const today = new Date()
+---
+
+<footer class='container flex flex-col gap-4'>
+  <nav class='flex gap-3'>
+    <a class='link' href={import.meta.env.BASE_URL}>Home</a>
+    <a class='link' href='blog'>Blog</a>
+    <a class='link' href='contact'>Contact</a>
+    <!-- <a class='link' href='/terms'>Terms</a> -->
+  </nav>
+
+  <hr class='opacity-50' />
+
+  <div class='flex justify-between'>
+    <span class='text-dim text-sm'>
+      &copy; {today.getFullYear()} Joey Jiron. All rights reserved.
+    </span>
+
+    <nav class='flex items-center gap-4'>
+      <a
+        class='text-dim hover:opacity-100'
+        href='https://x.com/joeyjiron06'
+        aria-label='X'>
+        <Icon name='tabler:brand-x' />
+      </a>
+      <a
+        class='text-dim hover:opacity-100'
+        href='https://github.com/joeyjiron06'
+        aria-label='Github'><Icon name='tabler:brand-github' /></a
+      >
+    </nav>
+  </div>
+</footer>

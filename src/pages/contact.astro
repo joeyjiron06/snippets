@@ -1,0 +1,43 @@
+---
+import BaseHead from '../components/BaseHead.astro'
+import Header from '../components/Header.astro'
+import Footer from '../components/Footer.astro'
+import { SITE_DESCRIPTION } from '../consts'
+---
+
+<!doctype html>
+<html lang='en'>
+  <head>
+    <BaseHead title='Snippets | Contact' description={SITE_DESCRIPTION} />
+  </head>
+  <body>
+    <Header />
+    <main class='container py-16'>
+      <article class='prose prose-neutral max-w-none dark:prose-invert'>
+        <h1 class='font-normal'>Get in touch</h1>
+
+        <p>
+          Thank you for reaching out! Whether you have a question, a suggestion,
+          or just want to share your thoughts, I'm all ears. Feel free to get in
+          touch through any of the methods below:
+        </p>
+
+        <p>
+          Email: Feel free to drop me an email at <a
+            class='underline decoration-dashed'
+            href='mailto:joeyjiron06@gmail.com'>joeyjiron06@gmail.com</a
+          > , and I'll do my best to respond as soon as possible.
+        </p>
+
+        <p>
+          Social Media: Connect with me on social media as well. Find me on
+          <a
+            class='underline decoration-dashed'
+            href='https://x.com/joeyjiron06'>Twitter</a
+          >.
+        </p>
+      </article>
+    </main>
+    <Footer />
+  </body>
+</html>

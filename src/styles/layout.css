@@ -1,0 +1,23 @@
+@layer base {
+  body {
+    /* sizing */
+    @apply min-h-screen w-screen min-w-full overflow-x-hidden;
+
+    /* colors - light*/
+    @apply bg-surface-50 text-base text-foreground-950;
+
+    /* colors - dark */
+    @apply dark:bg-surface-950 dark:text-foreground-50;
+  }
+
+  header {
+    /* sizing */
+    @apply flex w-full items-center justify-between py-2;
+
+    /* colors - light */
+    @apply border-b bg-surface-50;
+
+    /* colors - dark */
+    @apply dark:border-b-surface-800 dark:bg-surface-950;
+  }
+}

@@ -1,0 +1,25 @@
+---
+import BaseHead from '../components/BaseHead.astro'
+import Header from '../components/Header.astro'
+import Footer from '../components/Footer.astro'
+import { SITE_TITLE, SITE_DESCRIPTION } from '../consts'
+---
+
+<!doctype html>
+<html lang='en'>
+  <head>
+    <BaseHead title={SITE_TITLE} description={SITE_DESCRIPTION} />
+  </head>
+  <body>
+    <Header />
+    <main class='container py-16'>
+      <hgroup>
+        <h1 class='font-normal'>Snippets</h1>
+        <p class='text-dim'>
+          My home for my code snippets that I use across projects
+        </p>
+      </hgroup>
+    </main>
+    <Footer />
+  </body>
+</html>

@@ -1,0 +1,37 @@
+---
+import BaseHead from '../../components/BaseHead.astro'
+import Header from '../../components/Header.astro'
+import Footer from '../../components/Footer.astro'
+import { SITE_TITLE, SITE_DESCRIPTION } from '../../consts'
+import Sidebar from '../../components/Sidebar.astro'
+---
+
+<!doctype html>
+<html lang='en'>
+  <head>
+    <BaseHead title={SITE_TITLE} description={SITE_DESCRIPTION} />
+  </head>
+  <body>
+    <Header />
+    <main class='container flex gap-4 pb-24'>
+      <div
+        class='sticky top-10 hidden h-screen w-80 flex-shrink-0 overflow-y-scroll pb-20 pt-10 lg:block'>
+        <Sidebar />
+      </div>
+      <article
+        class='prose prose-neutral min-h-screen max-w-none flex-grow overflow-y-auto pb-10 pt-10 dark:prose-invert'>
+        <h1>Snippets</h1>
+        <p>
+          Welcome to my home where I keep all my snippets. Use the menu to find
+          a topic. I created this site because there is quite a few things that
+          I need from project to project. I've used github gists, but they're
+          not organized and very hard to find what I'm looking for.
+        </p>
+
+        <p>Hopefully you'll find some useful snippets as well!</p>
+        <slot />
+      </article>
+    </main>
+    <Footer />
+  </body>
+</html>

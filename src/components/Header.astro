@@ -1,0 +1,93 @@
+---
+import HeaderLink from './HeaderLink.astro'
+import Sidebar from './Sidebar.astro'
+import { Icon } from 'astro-icon/components'
+---
+
+<header>
+  <div class='container flex items-center justify-between'>
+    <nav class='flex gap-6 font-serif'>
+      <HeaderLink href={import.meta.env.BASE_URL}>Home</HeaderLink>
+      <HeaderLink href='blog' title='hello'>Blog</HeaderLink>
+    </nav>
+
+    <button id='menu-button' class='btn-ghost btn-sm lg:hidden'
+      ><Icon name='heroicons:bars-2' /></button
+    >
+  </div>
+
+  <dialog
+    id='sidebar-dialog'
+    class='backdrop:bg-black/50 absolute bottom-0 left-0 top-0 m-0 h-screen min-h-screen bg-surface-950 p-0 dark:text-foreground-50'>
+    <div
+      class='inline-block w-auto border-r border-r-surface-900 bg-surface-950 py-8 pl-8 pr-12'>
+      <Sidebar />
+    </div>
+  </dialog>
+</header>
+
+<style>
+  #sidebar-dialog {
+    transition:
+      display 100ms allow-discrete,
+      overlay 100ms allow-discrete;
+
+    animation: close 100ms forwards;
+
+    &[open] {
+      animation: open 100ms forwards;
+    }
+  }
+
+  @keyframes open {
+    from {
+      opacity: 0;
+      transform: translateX(-100%);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes close {
+    from {
+      opacity: 1;
+      transform: translateX(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateX(-100%);
+    }
+  }
+</style>
+
+<script>
+  const menuButton = document.getElementById('menu-button')
+  const sidebarDialog = document.getElementById(
+    'sidebar-dialog'
+  ) as HTMLDialogElement
+
+  menuButton?.addEventListener('click', () => {
+    sidebarDialog.addEventListener('close', () => {
+      console.log('dialog closed')
+      document.body.style.overflowY = ''
+    })
+
+    sidebarDialog.addEventListener('click', (event) => {
+      const rect = (event.target as HTMLElement).getBoundingClientRect()
+
+      if (
+        rect.left > event.clientX ||
+        rect.right < event.clientX ||
+        rect.top > event.clientY ||
+        rect.bottom < event.clientY
+      ) {
+        sidebarDialog.close()
+      }
+    })
+
+    sidebarDialog.showModal()
+    document.body.style.overflowY = 'hidden'
+  })
+</script>

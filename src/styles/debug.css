@@ -1,0 +1,17 @@
+@layer base {
+  .debug-red {
+    @apply border border-red-500;
+  }
+
+  .debug-blue {
+    @apply border-blue-500 border;
+  }
+
+  .debug-green {
+    @apply border border-green-500;
+  }
+
+  .debug-orange {
+    @apply border-orange-500 border;
+  }
+}
