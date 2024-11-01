@@ -29,14 +29,15 @@ const categoryItem = await getEntry(category)
       </div>
 
       <article
-        class='prose prose-neutral min-h-screen max-w-none flex-grow overflow-y-auto pb-10 pt-10 dark:prose-invert prose-code:before:content-none prose-code:after:content-none'>
+        class='prose prose-neutral min-h-screen max-w-none flex-grow overflow-y-auto pb-10 pt-10 dark:prose-invert prose-code:before:content-none prose-code:after:content-none prose-pre:border prose-pre:border-surface-800'>
         <hgroup>
-          <p class='text-dim mb-0 uppercase'>
+          <p class='text-dim my-0 uppercase'>
             {categoryItem.data.name}
           </p>
-          <h1>{title}</h1>
-          <p class='text-dim'><FormattedDate date={publishDate} /></p>
+          <h1 class='my-0'>{title}</h1>
+          <p class='text-dim my-0 py-0'><FormattedDate date={publishDate} /></p>
         </hgroup>
+
         <slot />
       </article>
     </main>
