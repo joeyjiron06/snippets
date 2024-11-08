@@ -5,7 +5,7 @@
   [type='reset'],
   [type='button'],
   .btn {
-    @apply inline-flex h-9 min-h-9 cursor-pointer items-center justify-center whitespace-nowrap rounded border border-transparent px-4 py-2 text-sm font-normal transition-colors;
+    @apply inline-flex h-9 min-h-9 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded border border-transparent px-4 py-2 text-sm font-normal transition-colors;
 
     /* COLORS */
     @apply bg-surface-950 text-foreground-50; /* light mode */

@@ -3,7 +3,7 @@ import { Icon } from 'astro-icon/components'
 const today = new Date()
 ---
 
-<footer class='container flex flex-col gap-4'>
+<footer class='container flex flex-col gap-4 pb-6'>
   <nav class='flex gap-3'>
     <a class='link' href={import.meta.env.BASE_URL}>Home</a>
     <a class='link' href='blog'>Blog</a>
@@ -14,8 +14,13 @@ const today = new Date()
   <hr class='opacity-50' />
 
   <div class='flex justify-between'>
-    <span class='text-dim text-sm'>
-      &copy; {today.getFullYear()} Joey Jiron. All rights reserved.
+    <span class='text-sm'>
+      <span class='text-dim'>&copy; {today.getFullYear()}</span>
+      <a
+        href='https://joeyjiron.com'
+        class='link text-dim underline hover:opacity-100'>Joey Jiron</a
+      >
+      <span class='text-dim'>. All rights reserved.</span>
     </span>
 
     <nav class='flex items-center gap-4'>

@@ -3,6 +3,7 @@ import BaseHead from '../components/BaseHead.astro'
 import Header from '../components/Header.astro'
 import Footer from '../components/Footer.astro'
 import { SITE_TITLE, SITE_DESCRIPTION } from '../consts'
+import { Icon } from 'astro-icon/components'
 ---
 
 <!doctype html>
@@ -10,15 +11,30 @@ import { SITE_TITLE, SITE_DESCRIPTION } from '../consts'
   <head>
     <BaseHead title={SITE_TITLE} description={SITE_DESCRIPTION} />
   </head>
-  <body>
+  <body class='flex min-h-screen flex-col'>
     <Header />
-    <main class='container py-16'>
-      <hgroup>
-        <h1 class='font-normal'>Snippets</h1>
+    <!-- style='min-height: calc(100vh - 3.375rem - 4.875rem);'  -->
+    <main class='container flex flex-grow flex-col justify-center gap-8 py-16'>
+      <hgroup class='max-w-3xl'>
+        <h1
+          style='font-size: clamp(3rem, calc(100vw - 2rem) , 5rem);'
+          class='font-normal leading-normal'>
+          Snippets
+        </h1>
         <p class='text-dim'>
-          My home for my code snippets that I use across projects
+          My home for my code snippets that I use across projects. I built this
+          site since I found myself copy/pasting code (mostly config files),
+          from project to project. I used github gists for a while, but they are
+          hard to search, order, and organize. This site has pages organized in
+          an easy way to find things.
         </p>
       </hgroup>
+
+      <div>
+        <a href='blog' class='btn btn-outline'
+          >Read Blog <Icon name='heroicons:arrow-right' /></a
+        >
+      </div>
     </main>
     <Footer />
   </body>
