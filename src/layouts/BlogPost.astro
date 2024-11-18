@@ -9,7 +9,7 @@ import { getEntry } from 'astro:content'
 
 type Props = CollectionEntry<'blog'>['data']
 
-const { title, description, publishDate, category } = Astro.props
+const { title, description, publishDate, category, updatedDate } = Astro.props
 
 const categoryItem = await getEntry(category)
 ---
@@ -24,7 +24,7 @@ const categoryItem = await getEntry(category)
 
     <main class='container flex gap-4'>
       <div
-        class='sticky top-10 hidden h-screen w-80 flex-shrink-0 overflow-y-scroll pb-20 pt-10 lg:block'>
+        class='sticky top-10 hidden h-screen w-80 flex-shrink-0 overflow-y-auto overflow-x-hidden pb-20 pt-10 lg:block'>
         <Sidebar />
       </div>
 
@@ -35,7 +35,8 @@ const categoryItem = await getEntry(category)
             {categoryItem.data.name}
           </p>
           <h1 class='my-0'>{title}</h1>
-          <p class='text-dim my-0 py-0'><FormattedDate date={publishDate} /></p>
+          <p class='text-dim my-0 py-0'>
+            Last updated • <FormattedDate date={updatedDate ?? publishDate} /></p>
         </hgroup>
 
         <slot />

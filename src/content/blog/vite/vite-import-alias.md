@@ -2,6 +2,7 @@
 title: 'Vite & Typescript import alias'
 description: 'Integrate astro with eslint, prettier and vscode'
 publishDate: 'October 31 2024'
+updatedDate: 'November 18 2024'
 category: 'vite'
 tags:
   - vite
@@ -64,4 +65,30 @@ export default defineConfig({
     },
   },
 })
+```
+
+Sometimes you may run into problems with eslint. Here's how you can fix them.
+
+If you are using modern eslint with [typescript-eslint](https://typescript-eslint.io/getting-started/), then you should be good and nothing else needed.
+
+If you are using the legacy config for eslint then you must install these dependencies
+
+```bash
+npm i -D eslint-plugin-import eslint-import-resolver-typescript
+```
+
+Then update your eslint config to add these settings so that eslint knows to use Typescirpt's config for imports (which will include your new alias).
+
+```json
+{
+  "extends": [
+    "plugin:import/typescript",
+  ],
+  "settings": {
+    "import/resolver": {
+      "typescript": true,
+      "node": true
+    }
+  }
+}
 ```
