@@ -18,6 +18,11 @@
 /* @import './textarea.css'; */
 /* @import './tooltip.css'; */
 
+* {
+  scrollbar-color: #454545 transparent;
+  scrollbar-width: thin;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

@@ -11,14 +11,29 @@ import { Icon } from 'astro-icon/components'
       <HeaderLink href='blog' title='hello'>Blog</HeaderLink>
     </nav>
 
-    <button id='menu-button' class='btn-ghost btn-sm lg:hidden'
-      ><Icon name='heroicons:bars-2' /></button
-    >
+    <div>
+      <nav class='flex items-center gap-4'>
+        <a
+          class='text-dim hover:opacity-100'
+          href='https://x.com/joeyjiron06'
+          aria-label='X'>
+          <Icon name='tabler:brand-x' />
+        </a>
+        <a
+          class='text-dim hover:opacity-100'
+          href='https://github.com/joeyjiron06'
+          aria-label='Github'><Icon name='tabler:brand-github' /></a
+        >
+        <button id='menu-button' class='btn-ghost btn-sm lg:hidden'
+          ><Icon name='heroicons:bars-2' /></button
+        >
+      </nav>
+    </div>
   </div>
 
   <dialog
     id='sidebar-dialog'
-    class='backdrop:bg-black/50 absolute bottom-0 left-0 top-0 m-0 h-screen min-h-screen bg-surface-950 p-0 dark:text-foreground-50'>
+    class='absolute bottom-0 left-0 top-0 m-0 h-screen min-h-screen bg-surface-950 p-0 backdrop:bg-black/50 dark:text-foreground-50'>
     <div
       class='inline-block w-auto border-r border-r-surface-900 bg-surface-950 py-8 pl-8 pr-12'>
       <Sidebar />
