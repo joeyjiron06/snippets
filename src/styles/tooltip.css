@@ -3,7 +3,7 @@
     @apply relative;
 
     &::before {
-      @apply pointer-events-none block absolute  px-2 py-1  z-50 bg-surface-50 text-foreground-950 rounded left-1/2 bottom-full -translate-x-1/2 -translate-y-2 opacity-0 transition-opacity duration-150 ease-in;
+      @apply pointer-events-none block absolute px-2 py-1 z-50 bg-surface-50 text-foreground-950 rounded left-1/2 bottom-full -translate-x-1/2 -translate-y-2 opacity-0 transition-opacity duration-150 ease-in;
 
       @apply dark:bg-surface-950 dark:border dark:border-surface-800 dark:text-foreground-50;
 
@@ -13,7 +13,7 @@
       &[data-placement="right"] {
         @apply left-full bottom-1/2 translate-x-2 translate-y-1/2;
       }
-      
+
       &[data-placement="bottom"] {
         @apply left-1/2 bottom-[revert] top-full -translate-x-1/2 translate-y-2;
       }
@@ -23,7 +23,7 @@
       }
     }
 
-    &:hover{
+    &:hover {
       &::before {
         @apply opacity-100;
       }

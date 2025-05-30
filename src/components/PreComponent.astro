@@ -1,0 +1,6 @@
+---
+import PreReactComponent from './react/preComponent'
+const props = Astro.props
+---
+
+<PreReactComponent {...props} client:load><slot /></PreReactComponent>

@@ -3,7 +3,9 @@ import tailwind from '@astrojs/tailwind'
 import icon from 'astro-icon'
 import { URL } from 'node:url'
 import GitHubDarkDefaultTheme from 'tm-themes/themes/github-dark-default.json'
+import mdx from '@astrojs/mdx'
 
+import react from '@astrojs/react'
 
 // GitHubDarkDefaultTheme.colors['editor.background'] = 'black'
 GitHubDarkDefaultTheme.colors['editor.background'] = '#0a0a0a'
@@ -22,10 +24,8 @@ export default defineConfig({
   markdown: {
     shikiConfig: {
       // themes:{'my-theme':GitHubDarkDefaultTheme},
-      theme: GitHubDarkDefaultTheme
+      theme: GitHubDarkDefaultTheme,
     },
-
-
   },
   integrations: [
     icon(),
@@ -33,5 +33,7 @@ export default defineConfig({
       nesting: true,
       applyBaseStyles: false,
     }),
+    mdx(),
+    react(),
   ],
 })
