@@ -1,0 +1,44 @@
+---
+import { Icon } from 'astro-icon/components'
+
+export interface Props {
+  level: 1 | 2 | 3 | 4 | 5 | 6
+  id?: string
+  class?: string
+}
+
+type Heading = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'
+
+const { level, class: className, id, ...rest } = Astro.props
+const Tag = `h${level}` as Heading
+
+// Current page path, e.g. "/snippets/my-page" or "/snippets/my-page/"
+const pathname = Astro.url.pathname
+
+// Optional: remove a trailing slash so the final URL looks nice
+const cleanPath = pathname.endsWith('/') ? pathname.slice(0, -1) : pathname
+
+// Build a root-relative same-page link that ignores <base>
+const href = `${cleanPath}#${id}`
+---
+
+<Tag
+  tabindex={id ? -1 : null}
+  class={'group scroll-mt-8 relative overflow-visible' + className}
+  id={id}
+  {...rest}>
+  {
+    id && (
+      <div class='absolute -left-7 top-1/2 block w-7 -translate-y-1/2'>
+        <a
+          class='link opacity-0 transition-opacity group-hover:opacity-100'
+          href={href}
+          aria-hidden='true'>
+          <Icon name='heroicons:link' class='size-5' />
+        </a>
+      </div>
+    )
+  }
+
+  <slot />
+</Tag>
