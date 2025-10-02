@@ -15,7 +15,7 @@ Why is deploying an Azure App Service so difficult these days. There are so many
 
 This is a complete example bicep template that can be used to deploy your React Router application to Azure App Service.
 
-Here is the bicep file
+**appService.bicep**
 
 ```bicep
 @description('name of the app service')
@@ -27,28 +27,35 @@ param appServicePlanName string
 @description('name of application insights resource')
 param appInsightsName string
 
-@description('the location to deploy to')
-param location string
+@description('the location for the app service')
+param appServiceLocation string
+
+@description('the name of the keyvault that stores secrets')
+param keyVaultName string
+
+@description('example environment variable')
+param someEnvironmentVariable string
 
 resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   name: appInsightsName
-  location: location
+  location: appServiceLocation
   properties: {
     Application_Type: 'web'
   }
   kind: 'web'
 }
 
-
 resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
   name: appServicePlanName
-  location: location
+  location: appServiceLocation
   properties: {
     reserved: true
   }
   sku: {
-    // F1 is the free plan
-    // S1 is the next step up
+    // F1 is the free tier
+    // I typically use D1 for dev/test
+    // B1, B2, B3 for low traffic production use cases
+    // Learn more here https://azure.microsoft.com/en-us/pricing/details/app-service/windows/?msockid=184cd4062ccc68af0e63c1e828cc6a34
     name: 'F1'
   }
   kind: 'linux'
@@ -56,13 +63,26 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
 
 resource webApp 'Microsoft.Web/sites@2023-12-01' = {
   name: appName
-  location: location
+  location: appServiceLocation
+  identity: {
+    // make sure the app service has a system assigned identity
+    // so it can access the key vault and other resources like
+    // Synapse, etc.
+    type: 'SystemAssigned'
+  }
+  kind: 'app,linux'
   properties: {
     serverFarmId: appServicePlan.id
     httpsOnly: true
+    endToEndEncryptionEnabled: true
+    storageAccountRequired: false
+    // Enable this to allow the app service to access key vault secrets
+    // using its system assigned identity
+    keyVaultReferenceIdentity: 'SystemAssigned'
     siteConfig: {
       publicNetworkAccess: 'Enabled'
       linuxFxVersion: 'node|20-lts'
+      healthCheckPath: '/'
 
       // only enable this when not on the F1 free plan
       // this will enable the app service to run continuously
@@ -70,123 +90,463 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
       // if you are on the F1 free plan, the app service will go to sleep
       // since only 60mins of compute is allowed per day
       alwaysOn: true
+      appCommandLine: ''
       scmType: 'None'
-      appSettings: [
-        {
-          name: 'WEBSITE_NODE_DEFAULT_VERSION'
-          value: '~20'  // Specify the Node.js version you want to use
-        }
-        {
-          // don't run from a zip package. if set to true, that app
-          // will not be able to access the file system. also, we would
-          // need to zip the node_modules folder and the app code
-          // and upload it to the app service which takes more time for
-          // deployment
-          name:'WEBSITE_RUN_FROM_PACKAGE'
-          value: '0'
-        }
-        {
-          // needed for app insights logging
-          name: 'APPINSIGHTS_INSTRUMENTATIONKEY'
-          value: appInsights.properties.InstrumentationKey
-        }
-        {
-          // needed for app insights logging
-          name: 'ApplicationInsightsAgent_EXTENSION_VERSION'
-          value: '~3'
-        }
-        {
-          // needed for app insights logging
-          name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
-          value: appInsights.properties.ConnectionString
-        }
-        {
-          // For Linux containers, if this app setting isn't specified, the
-          // /home directory is shared across scaled instances by default. You
-          // can set it to false to disable sharing.
-          // For Windows containers, set to true to enable the c:\home directory
-          // to be shared across scaled instances. The default is true for
-          // Windows containers.
-          name:'WEBSITES_ENABLE_APP_SERVICE_STORAGE'
-          value: 'true'
-        }
-        {
-          // enables logging in kudu when it starts a docker instance
-          // if deployments fail, we can check the logs in kudu
-          name: 'DOCKER_ENABLE_CI'
-          value: 'true'
-        }
-        {
-          // tell azure app service to npm install the dependencies
-          // during deployment. this is needed because we are not running
-          // from a zip package and we are not running npm install
-          // during the build pipeline
-          name: 'SCM_DO_BUILD_DURING_DEPLOYMENT'
-          value: 'true'
-        }
-      ]
+    }
+  }
+
+  // enable Easy Auth which provides built-in authentication for the app
+  // see auth.settings.json for more details
+  // remove this section if you don't want to use Easy Auth.
+  resource authSettings 'config' = {
+    name: 'authsettingsV2'
+    properties: {
+      platform: {
+        enabled: true
+        configFilePath: 'auth.settings.json'
+      }
+    }
+  }
+
+  resource webAppAppSettings 'config' = {
+    name: 'appsettings'
+    properties: {
+      WEBSITE_NODE_DEFAULT_VERSION: '~22' // Specify the Node.js version you want to use
+      // Be sure to run this app from package. It makes deployments so much faster and easier.
+      // We had a lot of problems when setting this to 0, build times were slower, timeout errors,
+      // out of memory issues, etc.
+      WEBSITE_RUN_FROM_PACKAGE: '1'
+      // needed for app insights logging
+      APPINSIGHTS_INSTRUMENTATIONKEY: appInsights.properties.InstrumentationKey
+      // needed for app insights logging
+      ApplicationInsightsAgent_EXTENSION_VERSION: '~3'
+      // needed for app insights logging
+      APPLICATIONINSIGHTS_CONNECTION_STRING: appInsights.properties.ConnectionString
+      // For Linux containers, if this app setting isn't specified, the
+      // /home directory is shared across scaled instances by default. You
+      // can set it to false to disable sharing.
+      // For Windows containers, set to true to enable the c:\home directory
+      // to be shared across scaled instances. The default is true for
+      // Windows containers.
+      WEBSITES_ENABLE_APP_SERVICE_STORAGE: 'true'
+      // enables logging in kudu when it starts a docker instance
+      // if deployments fail, we can check the logs in kudu
+      DOCKER_ENABLE_CI: 'true'
+      // Do not do a build during deployment since we will be using WEBSITE_RUN_FROM_PACKAGE which
+      // runs our app from a zip package we deploy.
+      // Setting this to true will cause the Azure App server to do npm install and npm build, which
+      // should only be true if WEBSITE_RUN_FROM_PACKAGE is set to 0.
+      SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
+
+      SOME_ENV_VAR: someEnvironmentVariable
+
+      SOME_SECRET_ENV_VAR: '@Microsoft.KeyVault(SecretUri=https://${keyVaultName}.vault.azure.net/secrets/YOUR_SECRET_NAME_HERE)'
+
+      // useful when debugging azure libraries
+      // AZURE_LOG_LEVEL: 'verbose'
+
+      // debug logging for various libraries
+      // DEBUG: 'prisma*'
     }
   }
 }
 ```
 
-Create a bicep params file called `params.bicepparam`
+**params.bicepparam**
 
 ```bicep
 using 'appService.bicep'
 
-param appName = '{your_app_name}'
+param appName = 'your_app_name'
 
-param appServicePlanName = '{your_app_service_plan_name}'
+param appServicePlanName = 'your_app_service_plan_name'
 
-param appInsightsName = '{your_app_insights_name_here}'
+param appInsightsName = 'your_app_insights_name_here'
 
-param location = 'westus'
+param appServiceLocation = 'westus'
+
+param keyVaultName = 'your_key_vault_name_here'
+
+param someEnvironmentVariable = 'your_environment_variable_here'
+
 ```
 
-Here's how to deploy it using a bash script. Since we created an app service on linux and set the `WEBSITE_RUN_FROM_PACKAGE` value to `0`,
-we need to zip our source code. If you are on Windows, you cannot use `Compress-Archive` because all the folders use `\` instead of `/`, which breaks the
-linux deployment. Instead you can install GNu Windows command here https://github.com/bmatzelle/gow/wiki. Make sure to add this to PATH "/c/Program Files (x86)/Gow/bin/" or wherever you install GOW.
+**package.json**
 
-```bash
-#!/bin/bash
+```jsonc
+{
+{
+  "scripts": {
+    // need to run prisma generate before building the app because we need
+    // the prisma client to be available for the app to import
+    "build": "prisma generate && react-router build",
 
-set -e
-
-RESOURCE_GROUP="{your_resource_group}"
-APP_SERVICE_NAME="{your_app_service_name}"
-SUBSCRIPTION="{your_subscription_id}"
-ZIP_FILE="app.zip"
-
-echo "Zipping the application..."
-rm -rf $ZIP_FILE
-zip -rq $ZIP_FILE package.json src package-lock.json react-router.config.ts vite.config.ts tsconfig.json public
-
-
-echo "Creating/Updating resources on azure..."
-DEPLOYMENT_NAME="aia-analytics-ui-$(date +%Y%m%d%H%M%S)"
-az deployment group create \
- --subscription $SUBSCRIPTION \
- --resource-group $RESOURCE_GROUP \
- --template-file appService.bicep \
- --parameters params.bicepparam \
- --name $DEPLOYMENT_NAME
-
-
-echo "Deploying your code..."
-az webapp deploy \
- --subscription $SUBSCRIPTION \
- --resource-group $RESOURCE_GROUP \
- --name $APP_SERVICE_NAME \
- --src-path $ZIP_FILE \
- --type zip
-
-echo "✅ Deployment completed successfully!"
+    // need to call the binary directly because symbolic links are not preserved during
+    // deployment. See below for more details
+    "start": "node ./node_modules/@react-router/serve/bin.js ./build/server/index.js",
+  },
+}
 ```
 
-Now build your application, then deploy it!
+**main.yaml**
 
-```bash
-pnpm run build
-./deploy.sh
+```yaml
+# This is the main build  & release pipeline that is triggered on the main branch.
+name: Build and Release Pipeline
+trigger:
+  branches:
+    include:
+      - main
+
+resources:
+  repositories:
+    - repository: 1ESPipelineTemplates
+      type: git
+      name: 1ESPipelineTemplates/1ESPipelineTemplates
+      ref: refs/tags/release
+
+variables:
+  system.debug: true
+
+extends:
+  template: v1/1ES.Unofficial.PipelineTemplate.yml@1ESPipelineTemplates
+  parameters:
+    pool:
+      name: MSSecurity-1ES-Build-Agents-Pool
+      image: MSSecurity-1ES-Ubuntu-2204
+      os: linux
+    sdl:
+      sourceAnalysisPool:
+        name: MSSecurity-1ES-Build-Agents-Pool
+        image: MSSecurity-1ES-Windows-2022
+        os: windows
+
+    stages:
+      - template: build.yml@self
+
+      - stage: release_ppe
+        displayName: Release PPE
+        dependsOn:
+          - Build
+        variables:
+          buildArtifactDirectory: '$(System.DefaultWorkingDirectory)/build'
+          system.debug: true
+        jobs:
+          - job: release
+            displayName: 'Release'
+            templateContext:
+              type: releaseJob
+              isProduction: false
+              inputs:
+                # Declare inputs to be released here to ensure they receive relevant checks
+                - input: pipelineArtifact
+                  artifactName: build
+                  targetPath: $(buildArtifactDirectory)
+            steps:
+              - template: deploy.yml@self
+                parameters:
+                  azureServiceConnection: 'AIAAnalyticsPPE'
+                  appServiceName: 'your-app-name-here'
+                  bicepParamsFilename: '$(buildArtifactDirectory)/params.bicepparam'
+                  appServiceBicepFilename: '$(buildArtifactDirectory)/appService.bicep'
+                  resourceGroup: 'your-resource-group-here'
+                  srcDir: $(buildArtifactDirectory)
 ```
+
+**build.yaml**
+
+```yaml
+parameters:
+  # Directory containing the source code to deploy. This should be the output directory from the build stage.
+  - name: srcDir
+    displayName: 'Source Directory'
+    type: string
+    default: '$(System.DefaultWorkingDirectory)'
+
+stages:
+  - stage: Build
+    displayName: 'Build'
+    jobs:
+      - job: build
+        displayName: 'Build'
+        dependsOn: git
+        variables:
+          buildOutputDirectory: $(System.DefaultWorkingDirectory)/drop
+        templateContext:
+          outputs:
+            # Declare outputs here for efficient SDL analysis
+            - output: pipelineArtifact
+              targetPath: $(buildOutputDirectory)
+              artifactName: build
+        steps:
+          - checkout: self
+
+          # set the proper nodejs version
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '22.x'
+            displayName: 'Install Node.js'
+
+          # Authenticate package manager (Runs at the start of every job)
+          - task: npmAuthenticate@0
+            inputs:
+              workingFile: '${{ parameters.srcDir }}/.npmrc'
+            displayName: 'Authenticate to Package Manager'
+
+          # Install NPM packages
+          - task: Npm@1
+            inputs:
+              command: 'install'
+              workingDir: ${{ parameters.srcDir }}
+            displayName: 'Install Packages'
+
+          # Lint the app
+          - task: Npm@1
+            inputs:
+              command: custom
+              customCommand: 'run lint'
+              workingDir: ${{ parameters.srcDir }}
+            displayName: 'ESLint'
+
+          # Build the app
+          - task: Npm@1
+            inputs:
+              command: custom
+              customCommand: 'run build'
+              workingDir: ${{ parameters.srcDir }}
+            displayName: 'Build the Application'
+
+          # Copy all artifacts to OB output directory
+          - task: CopyFiles@2
+            displayName: 'Copy build artifacts'
+            inputs:
+              Contents: |
+                ${{ parameters.srcDir }}/params.bicepparam
+                ${{ parameters.srcDir }}/auth.settings.json
+                ${{ parameters.srcDir }}/package.json
+                ${{ parameters.srcDir }}/node_modules/**
+                ${{ parameters.srcDir }}/build/**
+              TargetFolder: '${{ parameters.buildOutputDirectory }}'
+```
+
+**deploy.yaml**
+
+```yaml
+parameters:
+  # Azure Resource Manager service connection that has permissions to deploy to the storage account
+  - name: azureServiceConnection
+    type: string
+
+  - name: bicepParamsFilename
+    type: string
+
+  - name: appServiceBicepFilename
+    type: string
+
+  - name: appServiceName
+    type: string
+
+  # Directory containing the source code to deploy. This should be the output directory from the build stage.
+  - name: srcDir
+    type: string
+
+  - name: resourceGroup
+    type: string
+
+steps:
+  # Deploy app infrastructure
+  - task: AzureCLI@2
+    displayName: 'Deploy app infrastructure'
+    inputs:
+      azureSubscription: ${{ parameters.azureServiceConnection }}
+      scriptType: 'pscore'
+      scriptLocation: 'inlineScript'
+      # web must generate a unique deployment name otherwise we will get an error
+      inlineScript: |
+        $timestamp = Get-Date -Format "yyyy-MM-dd-HH-mm-ss"
+        $deploymentName = "AIA-Deployment-$timestamp"
+
+        az deployment group validate `
+          --resource-group "${{ parameters.resourceGroup }}" `
+          --template-file "${{ parameters.appServiceBicepFilename }}" `
+          --parameters "${{ parameters.bicepParamsFilename }}" `
+          --verbose
+
+        az deployment group create `
+          --resource-group "${{ parameters.resourceGroup }}" `
+          --template-file "${{ parameters.appServiceBicepFilename }}" `
+          --parameters "${{ parameters.bicepParamsFilename }}" `
+          --name "$deploymentName" `
+          --verbose
+
+  # deploy the code to app service
+  - task: AzureWebApp@1
+    displayName: 'Deploy to Azure App Service (Zip Deploy)'
+    inputs:
+      azureSubscription: ${{ parameters.azureServiceConnection }}
+      appType: webAppLinux
+      appName: ${{ parameters.appServiceName }}
+      package: ${{ parameters.srcDir }}
+      deploymentMethod: 'runFromPackage'
+      runtimeStack: 'NODE|22-lts'
+```
+
+**pullRequest.yaml**
+
+```yaml
+# This runs when a pull request is created or updated.
+name: Pull Request Pipeline
+trigger: none # Triggers via branch policy
+
+resources:
+  repositories:
+    - repository: 1ESPipelineTemplates
+      type: git
+      name: 1ESPipelineTemplates/1ESPipelineTemplates
+      ref: refs/tags/release
+
+extends:
+  template: v1/1ES.Unofficial.PipelineTemplate.yml@1ESPipelineTemplates
+  parameters:
+    pool:
+      name: MSSecurity-1ES-Build-Agents-Pool
+      image: MSSecurity-1ES-Ubuntu-2204
+      os: linux
+    sdl:
+      sourceAnalysisPool:
+        name: MSSecurity-1ES-Build-Agents-Pool
+        image: MSSecurity-1ES-Windows-2022
+        os: windows
+
+    stages:
+      - template: build.yml@self
+```
+
+## Troubleshooting Common Issues
+
+There were MANY problems I ran into when deploying my react-router application to Azure App Service which I will discuss below.
+
+<details class="accordion">
+<summary>Should I use WEBSITE_RUN_FROM_PACKAGE or not?</summary>
+
+According the [Azure App Service docs](https://learn.microsoft.com/en-us/azure/app-service/deploy-run-package#troubleshooting), setting `WEBSITE_RUN_FROM_PACKAGE=1` will result in this:
+
+> Running directly from a package makes wwwroot read-only. Your app will receive an error if it tries to write files to this directory.
+
+These docs make no mention that you could still write to the file system anywhere in /home which are outline in these docs, which I found with the help of copilot that explains it all: https://github.com/projectkudu/kudu/wiki/Understanding-the-Azure-App-Service-file-system.
+
+I was under the impression that ANY writes to the file system would fail, therefore I felt forced to set `WEBSITE_RUN_FROM_PACKAGE=0` to allow writes to the file system. Once you set this to 0, you now have to do a build on the App Service Server (named Kudu) which is a whole other can of worms that I outlined below.
+
+The entire reason why I wanted to write to the file system in the first place was to cache some data that I could share across instances of my app. Doing in-memory caching isn't great for my use case because when multiple instances of our service are running, different people can hit different instances and get different cached data. If they were to share a file system cache, then all instances would share the same cache. It's slightly slower to read from the file-system, but it is still faster than making the API calls, so the benefit outweighed the risks.
+
+I recommend to set `WEBSITE_RUN_FROM_PACKAGE` to `1` unless you have a very specific reason that you need it. For all the issues described above, it will save you a lot of headaches to run from package and it seems like the Azure docs encourage this as well.
+
+</details>
+
+<details class="accordion">
+<summary>Building during deployment using SCM_DO_BUILD_DURING_DEPLOYMENT</summary>
+
+The next problem I ran into was that I had to do a build on the App Service Server (Kudu) because I set `WEBSITE_RUN_FROM_PACKAGE=0`. This meant that I had to set `SCM_DO_BUILD_DURING_DEPLOYMENT=true` so that Kudu would run `npm install` and `npm run build` during deployment. This was supposed to be safer because it would ensure that the build was done in the same environment as the server, but this had sooooo many issues.
+
+The first issue was getting npm install to work properly. My organization that I work for, requires that we have private npm registries and we have to authenticate using a .npmrc file with either our personal credentials or a Service principal. This file has an access token that expires every 90 minutes. When Kudu runs npm install, it would work the first time, but after several retries, it would fail because the token had expired. If you ever needed to restart the app in the future, the token would be expired and the app would fail to start, so this was not a viable solution.
+
+The second issue I ran into was using the legacy sku `S1` (standard 1) for app service which has very limited resources. The build would often run out of memory and crash. It essentially will keep 2 copies your node_modules - one for the running application and one for the build process during deployment. Eventually it would delete the old node_modules folder after the build is complete, but only if it didn't run out of memory first. I had to manually SSH into the Kudu server, delete all the files in `/home/site/wwwroot`, then do a new build. This was a very manual process that was unsustainable. I solve this problem by actually downgrading to the `B3` sku which has more memory, CPU, but it's a "dev environment" type of sku that is not meant for production which is fine since this was running on a test environment anyways. But this solution was still not viable because of the previous issue.
+
+</details>
+
+<details class="accordion">
+<summary>Keyvault references in App Service could not be resolved</summary>
+
+If your organization requires that your Keyvault references be resolved by Managed Identity, then you will have set up a managed identity for your app AND give that managed identity access to the key vault. There are two options for creating a managed identity - system assigned or user assigned. I recommend using a system assigned managed identity because it is easier to manage and it is tied to the lifecycle of the app service. If you delete the app service, the managed identity is deleted as well. With a user assigned managed identity, you have to manage the lifecycle of that identity yourself and it can lead to orphaned identities if you are not careful and poses a potential security risk.
+
+To create a system assigned managed identity in bicep, you can add this to your web app resource:
+
+```bicep
+resource webApp 'Microsoft.Web/sites@2023-12-01' = {
+  // other properties here not shown for brevity
+  identity: {
+    type: 'SystemAssigned'
+  }
+}
+```
+
+You can do this next step in a bicep file if you manage your key vault in bicep as well, but I have only done this manually in the portal. Here are the steps to give the managed identity access to your app service:
+
+1. Go to your Key Vault in the Azure Portal.
+2. Navigate to "Access control (IAM)" on the sidebar.
+3. Click on "+ Add".
+4. Select "Add role assignment".
+5. In the search box type "Key Vault Secrets User".
+6. Select the "Key Vault Secrets User" role from the list and make sure it's highlighted.
+7. Click "Next".
+8. In the "Assign access to", select "Managed identity".
+9. Click on "+ Select members".
+10. Choose your subscription from the dropdown.
+11. In the "Managed identity" dropdown, select "App Service"
+12. Select your app service from the list.
+13. Click "Select" at the bottom.
+14. Click "Review + assign" to complete the process.
+
+On your next deployment, the key vault references should be resolved properly. If you want to manually refresh they key vault references, you can do this in the portal by going to your app service, then navigating to "Environment variables" then click "Pull reference values" which will refresh all the key vault references.
+
+</details>
+
+<details class="accordion">
+<summary>Enabling Easy Auth in App Service</summary>
+
+[Easy Auth](https://learn.microsoft.com/en-us/azure/app-service/overview-authentication-authorization) is a built-in authentication service for Azure App Service. It allows you to easily add authentication to your app without having to write any code. You can use Easy Auth with a variety of identity providers, including Azure Active Directory (now called Entra ID). Getting it to work properly can be a bit tricky, so the bicep template above is setup to work properly. Here are the issues I ran into.
+
+First, I had to nest the `resource authSettings 'config'` inside the `webApp` resource. When I had it as a separate resource, it would fail to deploy because the web app did not exist yet. Nesting it inside the web app resource ensures that the auth settings are created after the web app is created.
+
+Second, I had issues loading CSS & images because the auth settings file I setup was blocking ALL requests to the app unless the user was authenticated. This meant that the CSS & images could not be loaded because the user was not authenticated yet, when viewing the landing page. To fix this, I had to add:
+
+```json
+{
+  "excludedPaths": ["/", "/assets/*", "favicon.ico"]
+}
+```
+
+to exclude these paths from authentication. The `/` path is the landing page, `/assets/*` is where all my images and CSS are stored, and `favicon.ico` is the favicon for the app. There may be other important paths you need, so be sure to include them as well if needed, but these worked for me and my app's needs.
+
+Third, you must create a Managed Application in Entra ID and give it access to your app under `Manage > Authentication > Web > Redirect URIs` and add your redirect for Microsoft AAD login like so, or equivalent for other identity providers ([docs](https://learn.microsoft.com/en-us/azure/app-service/overview-authentication-authorization)):
+
+`https://YOUR_APP_SERVICE_NAME.azurewebsites.net/.auth/login/aad/callback`
+
+The `auth.settings.json` file is used and contains all the relevant details I needed to get it to work properly.
+
+</details>
+
+<details class="accordion">
+<summary>Symbolic Links are not preserved when deploying to Azure App Service on Linux</summary>
+
+This was a big gotcha that took me a while to figure out. When doing `npm install` on a linux machine, many of the binaries in `node_modules/.bin` are actually symbolic links to the actual files in the package folders. For example, `node_modules/.bin/react-router-server` is a symbolic link to `../react-router/dist/server.js`. When running locally (on a unix machine), this works fine because the symbolic link is preserved. However, when you deploy your app to Azure App Service on Linux, any symbolic links in your `node_modules/.bin` folder will be broken. This is because we use Azure Dev Ops drops which are zipped folders and they do not preserve symbolic links and there is no option to preserve them. Therefore, if you have a start script that calls a binary from `node_modules/.bin`, it will fail to start because the symbolic link is broken. This is certainly the case with a default `react-router` application because the start script is `react-router-server ./build/server/index.js` which calls the binary from `node_modules/.bin/react-router-server`.
+
+To fix this, you have to call the binary directly using `node` like so:
+
+```json
+"start": "node ./node_modules/@react-router/serve/bin.js ./build/server/index.js"
+```
+
+This is not the greatest approach because it hardcodes the path to the binary, which could change in subsequent releases, but it is the only way to ensure that it works on Azure App Service on Linux.
+
+</details>
+
+<details class="accordion">
+<summary>Prisma Client issues on different operating systems</summary>
+
+If you use [Prisma](https://www.prisma.io/) as your ORM, you may run into issues when deploying to Azure App Service on Linux. If you build your application during the CI/CD pipeline, then the Prisma will (by default) generate a [Prisma Engine](https://www.prisma.io/docs/orm/more/under-the-hood/engines) for the operating system that the build is running on. For example, if you build your application on an Ubuntu 22 machine, then the Prisma Engine will be generated for Ubuntu 22. If you then deploy your application to Azure App Service on Linux, then the Prisma Client will most likely not work because it is most likely running on a different Linux operating system then your Azure pipeline build agent. I ran into this issues and prisma generated a very clear error message.
+
+To avoid this issue, you can define your engine type to be `client` in your `schema.prisma` file like so:
+
+```prisma
+generator client {
+  provider   = "prisma-client-js"
+  // enable Prisma ORM without Rust. if we don't add this, then it will try to use the Rust engine which is specific to the operating system
+  // that prisma generate was run on. This way, we can just use the query engine that works everywhere.
+  engineType = "client"
+}
+```
+
+This will generate the Prisma Client without using the Rust engine, which is specific to the operating system that the Prisma Client was generated on. Instead you need to use a [driver adapter](https://www.prisma.io/docs/orm/overview/databases/database-drivers#driver-adapters) for your database, which runs in nodejs. This way, you can avoid issues when deploying to different operating systems.
+
+</details>

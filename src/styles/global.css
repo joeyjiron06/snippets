@@ -5,7 +5,7 @@
 @import './layout.css';
 @import './typography.css';
 @import './debug.css';
-/* @import './accordion.css'; */
+@import './accordion.css';
 @import './button.css';
 /* @import './checkbox.css'; */
 /* @import './dropdown.css'; */
