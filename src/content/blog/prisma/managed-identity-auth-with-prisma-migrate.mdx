@@ -1,0 +1,471 @@
+---
+title: 'Using Managed Identities in Azure Dev Ops Pipelines to deploy prisma migrations'
+description: 'Explains how to use Managed Identities in Azure Dev Ops Pipelines to deploy prisma migrations'
+publishDate: 'November 19 2025'
+category: 'prisma'
+tags:
+  - prisma
+  - azure
+  - devops
+  - ado
+  - prisma migrate
+  - managed identities
+---
+
+At the time of writing this `2025-11-19`, Prisma does not support using Azure Managed Identities for authentication when you run `prisma migrate deploy` [github issue](https://github.com/prisma/prisma/issues/13853). This is a huge bummer for me and MANY others, because my company requires that we use Managed Identities for authentication to our Azure SQL Databases and it is against our security policies to use username/password or connection strings with secrets. So I decided to write a script myself to solve this problem, but there is also some setup on the Azure DevOps required, and Azure portal side which I will talk about.
+
+## Step 1: Setup a Service Connection in Azure DevOps & assign Managed Identity
+
+Follow the instructions in this article to create a Service Connection in Azure DevOps using Managed Identity: [link](https://learn.microsoft.com/en-us/azure/devops/pipelines/library/service-endpoints?view=azure-devops)
+
+Note down the name of the service connection that you create, you will need it later.
+
+## Step 2: Assign the Managed Identity as db_owner to the database
+
+⚠️ BE SURE TO ENABLE `Azure Services` to bypass the firewall rules in your Network settings on your Azure SQL Server. Otherwise your Azure Dev Ops pipeline will not be able to connect to the database.
+
+Use your preferred method to connect to your Azure SQL Database and run the following SQL command to assign the Managed Identity as db_owner to the database and be sure to include the square brackets around the name of the Managed Identity:
+
+```SQL
+CREATE USER [MY_MANAGED_IDENTITY_NAME_HERE] FROM EXTERNAL PROVIDER;
+
+ALTER ROLE db_owner ADD MEMBER [MY_MANAGED_IDENTITY_NAME_HERE];
+```
+
+## Step 3: Create a script to get access token and run prisma migrate
+
+Since `prisma migrate deploy` does not support Managed Identities, I created a script below that more or less does what prisma migrate does. It reads your migration files directory, and applies the sql commands to the database one by one, and also keeps track of which migrations have been applied in the `_prisma_migrations_mssql` table.
+
+To run the script you must do the following
+
+```bash
+tsx ./prismaMigrateDeploy.ts --schema ./prisma/schema.prisma --url '<DATABASE_URL>'
+```
+
+Not that the `<DATABASE_URL>` must include the necessary authentication parameters to connect to the database for Azure Active Directory authentication.
+Example: `server=MY_SERVER.database.windows.net;database=MY_DATABASE;authentication=active directory integrated;`
+
+```ts
+#!/usr/bin/env tsx
+
+import mssql from 'mssql'
+import crypto from 'node:crypto'
+import type { Dirent } from 'node:fs'
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import { parseArgs } from 'node:util'
+
+/**
+ * Since prisma (at the time of writing) does not provide a way to apply migrations to an MSSQL Server
+ * Database that uses Azure Active Directory with Managed Identity, I am creating this script to apply migrations.
+ * This is by no means a full replacement for prisma migrate, but it works for my use case and thought I'd share it.
+ * This script reads the migration files from the migrations directory and applies them sequentially
+ * to the target database using the provided connection URL. It tries to mimic the behavior of `prisma migrate deploy`
+ * as best of my understanding.
+ *
+ * ⚠️ NOTE: The url you provide must include the necessary authentication parameters to connect to the database for
+ * Azure Active Directory authentication. If you are using Azure Dev Ops, be sure to run this script from a task
+ * called AzureCLI@2 and set an environment variable called AZURE_TOKEN_CREDENTIALS="AzureCliCredential" so that
+ * this script will use that AzureCLI credential to authenticate. When specifying AzureCLI credentials, you must
+ * setup up a service connection in Azure Dev Ops which has a link to a managed identity. You also have to give
+ * that managed identity the necessary permissions to the database.
+ *
+ * @example --url 'server=MY_SERVER.database.windows.net;database=MY_DATABASE;authentication=active directory integrated;'
+ *
+ * @author Joey Jiron <joeyjiron06@gmail.com>
+ * @created 2025-11-19
+ * @see https://github.com/prisma/prisma/issues/13853 github issue discussing lack of support for AAD auth with prisma migrate
+ * @run tsx ./scripts/prismaMigrateDeploy.ts --schema ./prisma/mssql/mssql.prisma --url '<DATABASE_URL>'
+ */
+async function main() {
+  const { schema, url, resolve } = parseCliArgs()
+
+  const migrationsFromProject = await readMigrationFiles(schema)
+
+  if (!migrationsFromProject.length) {
+    throw new Error(`No migrations found in directory: ${path.dirname(schema)}`)
+  }
+
+  console.log(
+    `Found ${migrationsFromProject.length} migration(s) in the migrations folder.`,
+  )
+
+  const migrateDeploy = await MigrateDeploy.create(url)
+
+  await migrateDeploy.ensureMigrationTableExists()
+
+  await migrateDeploy.applyResolvedMigrations(migrationsFromProject, resolve)
+
+  const migrationsFromDb = await migrateDeploy.listMigrations()
+
+  verifyMigrationsIntegrity(migrationsFromProject, migrationsFromDb)
+
+  const migrationsToApply = migrationsFromProject.filter((migration) => {
+    return !migrationsFromDb.find(
+      (migrationFromDb) => migrationFromDb.migration_name === migration.path,
+    )
+  })
+
+  if (migrationsToApply.length === 0) {
+    console.log('✅ All migrations are already applied. No action taken.')
+    await migrateDeploy.close()
+    return
+  }
+
+  console.log(`🔄️ Applying ${migrationsToApply.length} pending migrations...`)
+
+  for (const migration of migrationsToApply) {
+    await migrateDeploy.applyMigration(migration)
+    console.log(`🚀 Applied migration: ${migration.path}`)
+  }
+
+  console.log(
+    '✅ All pending migrations have been applied. Your database is now up to date.',
+  )
+
+  await migrateDeploy.close()
+}
+
+function parseCliArgs() {
+  const { values } = parseArgs({
+    args: process.argv.slice(2),
+    options: {
+      schema: {
+        type: 'string',
+        short: 's',
+      },
+      help: {
+        type: 'boolean',
+        short: 'h',
+      },
+      url: {
+        type: 'string',
+        short: 'u',
+      },
+      resolve: {
+        type: 'string',
+        multiple: true,
+      },
+    },
+  })
+
+  if (values.help) {
+    console.log(`
+Custom Prisma Migration Deploy Script
+
+Usage: tsx prismaMigrateDeploy.ts --schema <schema-file>
+
+Options:
+  --schema, -s    Path to the Prisma schema file (required)
+  --url, -u       Database connection URL (required)
+  --resolve       List of migration names to mark as resolved. You can add as many resolve flags as needed in the case when you get an error explaining that you need to do this. (optional)
+  --help, -h      Show this help message
+
+Example:
+  tsx prismaMigrateDeploy.ts --schema ./prisma/mssql/mssql.prisma
+      `)
+    process.exit(0)
+  }
+
+  const errors: string[] = []
+
+  if (!values.schema) {
+    errors.push('❌ Error: --schema argument is required')
+  }
+
+  if (!values.url) {
+    errors.push('❌ Error: --url argument is required')
+  }
+
+  if (errors.length > 0) {
+    errors.forEach((error) => console.error(error))
+    process.exit(1)
+  }
+  return {
+    schema: values.schema!,
+    url: values.url!,
+    resolve: values.resolve || [],
+  }
+}
+
+function verifyMigrationsIntegrity(
+  migrationsFromProject: MigrationDirectory[],
+  migrationsFromDb: MigrationEntry[],
+) {
+  const errors: string[] = []
+  for (const migrationFromDb of migrationsFromDb) {
+    const correspondingMigration = migrationsFromProject.find(
+      (migration) => migration.path === migrationFromDb.migration_name,
+    )
+
+    if (!correspondingMigration) {
+      errors.push(
+        `❌ Migration present in database but missing from project: ${migrationFromDb.migration_name}`,
+      )
+    } else if (
+      correspondingMigration.migrationFile.checksum !== migrationFromDb.checksum
+    ) {
+      errors.push(`❌ Migration file ${migrationFromDb.migration_name}/migration.sql has been modified since it was applied to the database: 
+You should not modify migration files after they have been applied to the database.
+If you really know what you are doing and want to skip this check, you can pass in a '--resolve' flag to mark this migration as resolved. You can add as many resolve flags as needed, and they only need to be migration names and just run once. After the migration happens, you can remove them from the list.  Here is an example of how to do that:
+
+tsx ./scripts/prismaMigrateDeploy.ts --schema ./prisma/mssql/mssql.prisma --url '<DATABASE_URL>' --resolve ${migrationFromDb.migration_name}
+`)
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error(`Migration integrity check failed:\n${errors.join('\n')}`)
+  }
+}
+
+type MigrationDirectory = {
+  path: string
+  migrationFile: {
+    path: string
+    content: string
+    checksum: string
+  }
+}
+
+/**
+ * Lists migrations present in the migrations directory, sorted lexicographically by name.
+ * Returns an empty array if the directory doesn't exist.
+ * Based on Prisma's listMigrations utility.
+ *
+ * @see https://github.com/prisma/prisma/blob/main/packages/migrate/src/utils/listMigrations.ts
+ * @param migrationsDirectoryPath Absolute path to the migrations directory
+ * @returns Promise resolving to a sorted list of migrations
+ */
+async function readMigrationFiles(
+  schemaPath: string,
+): Promise<MigrationDirectory[]> {
+  const migrationsDirectoryPath = getMigrationsDirectoryFromSchema(schemaPath)
+
+  // Read the directory entries. If a directory doesn't exist, we return an empty array.
+  // For any other error, we re-throw it.
+  let entries: Dirent[] = []
+  try {
+    entries = await fs.readdir(migrationsDirectoryPath, {
+      withFileTypes: true,
+      recursive: false,
+    })
+  } catch (error) {
+    // If directory doesn't exist, return an empty array
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return []
+    }
+    throw error
+  }
+
+  const migrationDirectories: MigrationDirectory[] = []
+
+  for (const entry of entries.filter((entry) => entry.isDirectory())) {
+    const migrationPath = path.join(migrationsDirectoryPath, entry.name)
+    const migrationFileName = 'migration.sql'
+    const migrationFilePath = path.join(migrationPath, migrationFileName)
+
+    const migrationFileContent = await fs.readFile(migrationFilePath, {
+      encoding: 'utf-8',
+    })
+    // Calculate checksum of the migration file content
+    const checksum = sha256Checksum(migrationFileContent)
+
+    migrationDirectories.push({
+      path: entry.name,
+      migrationFile: {
+        path: migrationFilePath,
+        content: migrationFileContent,
+        checksum,
+      },
+    })
+  }
+
+  // Sort lexicographically by name
+  const sortedMigrations = migrationDirectories.sort((a, b) =>
+    a.path.localeCompare(b.path),
+  )
+
+  return sortedMigrations
+}
+
+function sha256Checksum(content: string): string {
+  return crypto.createHash('sha256').update(content, 'utf8').digest('hex')
+}
+
+function getMigrationsDirectoryFromSchema(schemaPath: string): string {
+  const schemaDir = path.dirname(schemaPath)
+  return path.join(schemaDir, 'migrations')
+}
+
+type MigrationEntry = {
+  id: string
+  checksum: string
+  migration_name: string
+  started_at: Date
+  finished_at: Date | null
+  applied_steps_count: number
+  rolled_back_at: Date | null
+  logs: string | null
+}
+
+class MigrateDeploy {
+  constructor(private readonly mssql: mssql.ConnectionPool) {}
+
+  async ensureMigrationTableExists() {
+    await this.mssql.query(`
+      IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = '_prisma_migrations_mssql')
+      BEGIN
+      CREATE TABLE _prisma_migrations_mssql (
+        id NVARCHAR(36) PRIMARY KEY,
+        checksum NVARCHAR(64) NOT NULL,
+        migration_name NVARCHAR(255) NOT NULL UNIQUE,
+        started_at DATETIME2 NOT NULL,
+        finished_at DATETIME2,
+        applied_steps_count INT NOT NULL,
+        rolled_back_at DATETIME2,
+        logs NVARCHAR(MAX)
+      );
+      END
+    `)
+  }
+
+  async applyMigration(migration: MigrationDirectory) {
+    const id = crypto.randomUUID()
+    await this.mssql
+      .query`INSERT INTO _prisma_migrations_mssql (id, checksum, migration_name, started_at, applied_steps_count) 
+      VALUES (${id}, ${migration.migrationFile.checksum}, ${migration.path}, GETUTCDATE(), 0);
+      `
+
+    await this.mssql.query(migration.migrationFile.content)
+
+    await this.mssql.query`UPDATE _prisma_migrations_mssql 
+      SET finished_at = GETUTCDATE(), applied_steps_count = 1 
+      WHERE id = ${id};
+      `
+  }
+
+  async resolveMigration(migration: MigrationDirectory) {
+    await this.mssql.query`UPDATE _prisma_migrations_mssql 
+      SET finished_at = GETUTCDATE(), checksum = ${migration.migrationFile.checksum} 
+      , applied_steps_count = applied_steps_count + 1
+      WHERE migration_name = ${migration.path};
+      `
+  }
+
+  async applyResolvedMigrations(
+    migrationsFromProject: MigrationDirectory[],
+    resolve: string[],
+  ) {
+    if (resolve.length > 0) {
+      for (const migrationName of resolve) {
+        const migration = migrationsFromProject.find(
+          (m) => m.path === migrationName,
+        )
+        if (!migration) {
+          throw new Error(
+            `⛔ Attempted to resolve migration '${migrationName}' but it was not found in migration table. Only migration names present in the migrations table can be resolved.`,
+          )
+        }
+
+        await this.resolveMigration(migration)
+        console.log(`📄 Resolved migration: ${migrationName}`)
+      }
+    }
+  }
+
+  async listMigrations() {
+    const result = await this.mssql.query<
+      MigrationEntry[]
+    >`SELECT * FROM _prisma_migrations_mssql`
+    return result.recordset
+  }
+
+  async close() {
+    await this.mssql.close()
+  }
+
+  static async create(url: string) {
+    const sql = await mssql.connect(url)
+    return new MigrateDeploy(sql)
+  }
+}
+
+main().catch((error) => {
+  console.error(error)
+  process.exit(1)
+})
+```
+
+## Step 4: Setup Azure Dev Ops Pipeline to run the script
+
+Now that you have the script ready and a managed identity service connection setup in Azure Dev Ops, you can create a pipeline to run the script.
+
+```yaml
+name: Prisma Migrate Deploy
+trigger:
+  branches:
+    include:
+      - main
+
+variables:
+  system.debug: true
+
+  stages:
+    - stage: migrate_db
+      displayName: Migrate Database
+      jobs:
+        - job: migrate_db
+          displayName: 'Migrate Database'
+          steps:
+            # set the proper nodejs version
+            - task: NodeTool@0
+              inputs:
+                versionSpec: '20.x'
+              displayName: 'Install Node.js'
+
+            # Authenticate package manager (Runs at the start of every job)
+            - task: npmAuthenticate@0
+              inputs:
+                # use a variable for working file if your src is not the root
+                # workingFile: "${{ variables.srcDir }}/.npmrc"
+                workingFile: '.npmrc'
+              displayName: 'Authenticate to Package Manager'
+
+            # Install NPM packages
+            - task: Npm@1
+              inputs:
+                command: 'install'
+                # use a variable for working dir if your src is not the root
+                # workingDir: ${{ variables.srcDir }}
+              displayName: 'Install Packages'
+
+            - task: AzureCLI@2 # 👈 MAKE SURE THIS IS AN AZURE CLI TASK
+              displayName: 'Run Migration'
+              env:
+                AZURE_LOG_LEVEL: 'verbose'
+                DEBUG: 'prisma:*,mssql:*'
+                AZURE_TOKEN_CREDENTIALS: 'AzureCliCredential' # 👈 MAKE SURE THIS ENV VARIALBLE IS SET TO LET THE LIBRARY USE THE AZURE CLI CREDS
+
+              inputs:
+                azureSubscription: 'MY_SERVICE_CONNECTION_NAME_HERE' # 👈 YOUR SERVICE CONNECTION NAME HERE THAT HAS A MANAGED IDENTITY FROM STEP 1
+                scriptType: 'bash'
+                scriptLocation: 'inlineScript'
+                inlineScript: |
+                  set -e
+
+                  # This is to help debug any connectivity issues if your migration fails.
+                  # Sometimes company policy might block public access to Azure SQL Databases
+                  # so you have to make sure that the pipeline has access to the database.
+
+                  # # Resolve FQDN → should be a public IP unless you're using Private Link
+                  # nslookup SERVER_NAME_HERE.database.windows.net
+
+                  # # TCP reachability on 1433
+                  # nc -vz SERVER_NAME_HERE.database.windows.net 1433 || true
+
+                  #................................be sure that this authentication method is set correctly here 👇 
+                  DB_URL="server=SERVER_NAME_HERE.database.windows.net;database=DATABASE_NAME_HERE;authentication=active directory integrated;encrypt=true;"
+
+                  tsx ./prismaMigrateDeploy.ts --schema ./prisma/schema.prisma --url ${DB_URL}
+```
