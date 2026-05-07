@@ -1,19 +1,28 @@
 # Snippets
 
-My home for my code snippets that I use across projects
+Static docs site built with Next.js and Fumadocs.
 
+## Requirements
+
+- Node 22+
+- pnpm 10+
+
+## Commands
+
+```bash
+pnpm install
+pnpm dev
+pnpm build
+pnpm preview
+pnpm typecheck
 ```
-pnpm i -D eslint eslint-plugin-astro @typescript-eslint/parser eslint-plugin-jsx-a11y prettier prettier-plugin-astro prettier-plugin-tailwindcss @typescript-eslint/eslint-plugin @typescript-eslint/parser eslint-plugin-prettier eslint-config-prettier
-```
 
-Adding tailwind
+## Paths
 
-```
-pnpm astro add tailwind
-```
+- Docs content: `content/docs/**`
+- Archived Astro site: `archive/astro`
+- GitHub Pages base path: `/snippets`
 
-Links
+## Deployment
 
-- https://tabler.io/icons
-- https://dante-astro-theme.netlify.app/
-- https://www.patterns.dev/vanilla
+The site is exported statically and deployed to GitHub Pages via `.github/workflows/astro.yml`.

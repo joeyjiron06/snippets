@@ -1,0 +1,7 @@
+{
+  "eyebrow": "Snippets by Joey",
+  "title": "A personal library of reusable code snippets",
+  "description": "I built Snippets to keep the config files, setup notes, and deployment patterns I reuse across projects in one place.",
+  "secondaryDescription": "This site is intentionally small, practical, and opinionated. It is where I collect the snippets I actually reach for when building JavaScript apps.",
+  "ctaLabel": "Browse snippets"
+}

@@ -1,0 +1,34 @@
+{
+  "/astro/adding-copy-button-to-astro-code-blocks": {
+    "title": "Adding a Copy button to Astro Code Blocks",
+    "description": "How to add a copy button to Astro code blocks"
+  },
+  "/astro/astro-eslint-vscode": {
+    "title": "Astro + Eslint + Prettier + VSCode",
+    "description": "Integrate astro with eslint, prettier and vscode"
+  },
+  "/astro/deploy-to-github-pages": {
+    "title": "Deploy Astro to GitHub Pages",
+    "description": "Deploy an Astro project to github pages"
+  },
+  "/npm/creating-a-new-npm-package": {
+    "title": "Creating a new Npm Package",
+    "description": "A step-by-step guide to creating and publishing a new Npm package."
+  },
+  "/prisma/managed-identities-prisma-migrate": {
+    "title": "Using Managed Identities in Azure Dev Ops Pipelines to deploy prisma migrations",
+    "description": "Explains how to use Managed Identities in Azure Dev Ops Pipelines to deploy prisma migrations"
+  },
+  "/react/deploy-to-azure-app-service": {
+    "title": "Deploying a React Router to Azure App Service",
+    "description": "Integrate react router with eslint, prettier and vscode"
+  },
+  "/react/eslint-prettier": {
+    "title": "React + Eslint + Prettier + VSCode",
+    "description": "Integrate react router with eslint, prettier and vscode"
+  },
+  "/vite/vite-import-alias": {
+    "title": "Vite & Typescript import alias",
+    "description": "Integrate astro with eslint, prettier and vscode"
+  }
+}
