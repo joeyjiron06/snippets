@@ -1,28 +1,11 @@
 # Snippets
 
-Static docs site built with Next.js and Fumadocs.
+This is my repo where I save my snippets of code that i reuse between projects. They are not necessarily snippets that can be their own library, but sometimes it's certain config files that I like set a certain way, or a snippet of Javascript code that I always forget how to do.
 
-## Requirements
+## Development
 
-- Node 22+
-- pnpm 10+
-
-## Commands
-
-```bash
-pnpm install
-pnpm dev
-pnpm build
-pnpm preview
-pnpm typecheck
+```sh
+pnpm run dev
 ```
 
-## Paths
-
-- Docs content: `content/docs/**`
-- Archived Astro site: `archive/astro`
-- GitHub Pages base path: `/snippets`
-
-## Deployment
-
-The site is exported statically and deployed to GitHub Pages via `.github/workflows/astro.yml`.
+This is a Fumapress app powered by Fumadocs.
