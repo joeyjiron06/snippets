@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  BUILD_PATH: "./build/public"
+  BUILD_PATH: "./dist/public"
 
 jobs:
   build:
