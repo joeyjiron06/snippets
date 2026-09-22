@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  BUILD_PATH: "."
+  BUILD_PATH: "./build/public"
 
 jobs:
   build:
@@ -53,11 +53,11 @@ jobs:
       - name: Build
         run: pnpm run build
       - name: Disable Jekyll
-        run: touch ${{ env.BUILD_PATH }}/dist/public/.nojekyll
+        run: touch ${{ env.BUILD_PATH }}/.nojekyll
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ${{ env.BUILD_PATH }}/dist/public
+          path: ${{ env.BUILD_PATH }}
 
   deploy:
     environment:
