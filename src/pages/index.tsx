@@ -9,19 +9,15 @@ import { buttonVariants } from "fumadocs-ui/components/ui/button";
 import { createHomeLayout } from "fumapress/layouts/home";
 import { Link } from "fumapress/client";
 import Dither from "../components/dither";
-import ByJoeyJiron from '../assets/images/by-joey-jiron.svg?react'
-
+import ByJoeyJiron from "../assets/images/by-joey-jiron.svg?react";
 
 const GithubUrl = "https://github.com/joeyjiron06/snippets";
 
 const HomeLayout = createHomeLayout({
   layoutProps: {
-    className: 'dark',
+    className: "dark",
     githubUrl: GithubUrl,
     themeSwitch: {
-      enabled: false,
-    },
-    searchToggle: {
       enabled: false,
     },
   },
@@ -67,14 +63,18 @@ function Hero() {
 
       <div className="relative z-10 mx-auto flex max-w-2xl flex-col items-center gap-6 text-center">
         <div className="space-y-4">
-          <a href="https://joeyjiron.com" aria-label="By Joey Jiron" className="flex mx-auto w-24">
+          <a
+            href="https://joeyjiron.com"
+            aria-label="By Joey Jiron"
+            className="flex mx-auto w-24"
+          >
             <ByJoeyJiron className="h-5" />
           </a>
           <h1 className="text-4xl font-bold tracking-tight text-white sm:text-6xl">
-          Snippets
-        </h1>
+            Snippets
+          </h1>
         </div>
-        
+
         <p className="text-lg text-white/70 text-balance">
           A small, practical, opinionated collection of the JavaScript snippets
           I actually reach for.
