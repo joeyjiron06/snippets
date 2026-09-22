@@ -5,8 +5,12 @@ import { fumadocsMdx } from "fumadocs-mdx/vite";
 import svgr from "vite-plugin-svgr";
 
 export default defineConfig({
-  plugins: [press({
-          basePath: "/snippets/",
-
-  }), fumadocsMdx(), tailwindcss(), svgr()],
+  plugins: [
+    press({
+      basePath: "/snippets/",
+    }),
+    fumadocsMdx(),
+    tailwindcss(),
+    svgr(),
+  ],
 });

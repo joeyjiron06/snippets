@@ -24,7 +24,7 @@ const docs = defineDocs({
 
 const config = defineConfig({
   content: docs.toFumadocsSource(),
-  mode: 'static',
+  mode: "static",
   renderPage: (props) => <GlassLayout {...props} />,
   site: {
     name: "Snippets",
@@ -43,24 +43,25 @@ const config = defineConfig({
     },
   },
 
-
   meta: {
     root() {
       return (
         <>
           <link rel="preconnect" href="https://fonts.googleapis.com" />
-          <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+          <link
+            rel="preconnect"
+            href="https://fonts.gstatic.com"
+            crossOrigin=""
+          />
           <link
             href="https://fonts.googleapis.com/css2?family=Geist:ital,wght@0,100..900;1,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap"
             rel="stylesheet"
           />
-          <link rel="icon" href="/favicon.ico" type="image/x-icon" />
+          <link rel="icon" href="/snippets/favicon.ico" type="image/svg+xml" />
         </>
       );
     },
   },
-})
-  .adapters(fumadocsMdx());
-
+}).adapters(fumadocsMdx());
 
 export default config;
