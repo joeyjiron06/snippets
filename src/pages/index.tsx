@@ -107,7 +107,7 @@ function SiteFooter() {
     // colours rather than the theme tokens, which would go invisible in light mode.
     // `relative z-10` lifts this static element above the fixed z-0 backdrop.
     <footer className="relative z-10 border-t border-white/10 px-6 py-6 text-sm text-white/60">
-      <div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mx-auto flex max-w-6xl flex-row gap-3 items-center justify-between">
         <p>
           &copy; {new Date().getFullYear()}{" "}
           <a

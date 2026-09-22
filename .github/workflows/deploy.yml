@@ -52,13 +52,12 @@ jobs:
         uses: actions/configure-pages@v4
       - name: Build
         run: pnpm run build
-        working-directory: ${{ env.BUILD_PATH }}
       - name: Disable Jekyll
-        run: touch ${{ env.BUILD_PATH }}/dist/.nojekyll
+        run: touch ${{ env.BUILD_PATH }}/dist/public/.nojekyll
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ${{ env.BUILD_PATH }}/dist
+          path: ${{ env.BUILD_PATH }}/dist/public
 
   deploy:
     environment:
